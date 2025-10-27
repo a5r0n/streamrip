@@ -158,12 +158,51 @@ class HifiClient(Client):
         else:
             artist_data = data
         
-        # HiFi artist endpoint doesn't include albums list
-        # Return empty albums list - streamrip will handle this gracefully
-        artist_data["albums"] = []
+        artist_name = artist_data.get("name", "")
         
-        logger.debug(f"Artist metadata (albums not available via HiFi): {artist_data}")
-        logger.info(f"Note: HiFi API doesn't support artist discography. Artist '{artist_data.get('name')}' will have no albums listed.")
+        # Get albums by searching for the artist name
+        # HiFi doesn't have a direct artist albums endpoint, so we search
+        try:
+            search_url = f"{self.base_url}/search/"
+            search_params = {"al": artist_name, "li": 100}  # Search albums by artist name
+            
+            async with self.rate_limiter:
+                async with self.session.get(search_url, params=search_params) as resp:
+                    if resp.status == 200:
+                        search_data = await resp.json()
+                        
+                        # Handle response format
+                        if isinstance(search_data, list) and len(search_data) > 0:
+                            search_data = search_data[0]
+                        
+                        if isinstance(search_data, dict) and "albums" in search_data:
+                            albums_data = search_data["albums"]
+                            if isinstance(albums_data, dict) and "items" in albums_data:
+                                albums = albums_data["items"]
+                                # Filter to only include albums by this specific artist
+                                # Check if the album's artists list contains this artist ID
+                                filtered_albums = []
+                                for album in albums:
+                                    if "artists" in album:
+                                        for artist in album["artists"]:
+                                            if str(artist.get("id")) == str(artist_id):
+                                                filtered_albums.append(album)
+                                                break
+                                
+                                artist_data["albums"] = filtered_albums
+                                logger.debug(f"Found {len(filtered_albums)} albums for artist {artist_name}")
+                            else:
+                                artist_data["albums"] = []
+                        else:
+                            artist_data["albums"] = []
+                    else:
+                        logger.warning(f"Failed to search albums for artist {artist_name}")
+                        artist_data["albums"] = []
+        except Exception as e:
+            logger.warning(f"Error fetching albums for artist {artist_name}: {e}")
+            artist_data["albums"] = []
+        
+        logger.debug(f"Artist metadata: {artist_data.get('name')} with {len(artist_data.get('albums', []))} albums")
         return artist_data
 
     async def search(self, media_type: str, query: str, limit: int = 100) -> list[dict]:
