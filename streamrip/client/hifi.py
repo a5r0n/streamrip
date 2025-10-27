@@ -79,8 +79,15 @@ class HifiClient(Client):
                     raise NonStreamableError(f"Failed to get track {track_id}: {resp.status}")
                 data = await resp.json()
         
-        logger.debug(f"Track metadata: {data}")
-        return data
+        # HiFi returns an array: [track_metadata, stream_info, ...]
+        # We only need the track metadata (first element)
+        if isinstance(data, list) and len(data) > 0:
+            track_data = data[0]
+        else:
+            track_data = data
+        
+        logger.debug(f"Track metadata: {track_data}")
+        return track_data
 
     async def _get_album(self, album_id: str) -> dict:
         """Get album metadata from HiFi API."""
@@ -93,8 +100,15 @@ class HifiClient(Client):
                     raise NonStreamableError(f"Failed to get album {album_id}: {resp.status}")
                 data = await resp.json()
         
-        logger.debug(f"Album metadata: {data}")
-        return data
+        # HiFi returns an array: [album_metadata, ...]
+        # We only need the album metadata (first element)
+        if isinstance(data, list) and len(data) > 0:
+            album_data = data[0]
+        else:
+            album_data = data
+        
+        logger.debug(f"Album metadata: {album_data}")
+        return album_data
 
     async def _get_playlist(self, playlist_id: str) -> dict:
         """Get playlist metadata from HiFi API."""
@@ -107,8 +121,15 @@ class HifiClient(Client):
                     raise NonStreamableError(f"Failed to get playlist {playlist_id}: {resp.status}")
                 data = await resp.json()
         
-        logger.debug(f"Playlist metadata: {data}")
-        return data
+        # HiFi returns an array: [playlist_metadata, ...]
+        # We only need the playlist metadata (first element)
+        if isinstance(data, list) and len(data) > 0:
+            playlist_data = data[0]
+        else:
+            playlist_data = data
+        
+        logger.debug(f"Playlist metadata: {playlist_data}")
+        return playlist_data
 
     async def _get_artist(self, artist_id: str) -> dict:
         """Get artist metadata from HiFi API."""
@@ -121,8 +142,15 @@ class HifiClient(Client):
                     raise NonStreamableError(f"Failed to get artist {artist_id}: {resp.status}")
                 data = await resp.json()
         
-        logger.debug(f"Artist metadata: {data}")
-        return data
+        # HiFi returns an array: [artist_metadata, ...]
+        # We only need the artist metadata (first element)
+        if isinstance(data, list) and len(data) > 0:
+            artist_data = data[0]
+        else:
+            artist_data = data
+        
+        logger.debug(f"Artist metadata: {artist_data}")
+        return artist_data
 
     async def search(self, media_type: str, query: str, limit: int = 100) -> list[dict]:
         """Search for tracks, albums, playlists, or artists.
@@ -143,15 +171,57 @@ class HifiClient(Client):
         async with self.rate_limiter:
             async with self.session.get(url, params=params) as resp:
                 if resp.status != 200:
+                    logger.debug(f"Search request failed with status {resp.status}")
                     return []
                 data = await resp.json()
         
-        # HiFi returns all types in the response, filter by requested type
-        # The API returns data in format: {"tracks": [...], "albums": [...], ...}
-        media_type_key = f"{media_type}s" if media_type != "artist" else "artists"
+        logger.debug(f"Search returned {data.get('totalNumberOfItems', 0)} total items")
         
-        if media_type_key in data and len(data[media_type_key]) > 0:
+        # HiFi search API returns tracks in {"items": [...]} format
+        # For different media types, we need to extract relevant information
+        if "items" not in data or len(data["items"]) == 0:
+            return []
+        
+        if media_type == "track":
+            # Return tracks as-is
             return [data]
+        elif media_type == "artist":
+            # Extract unique artists from track results
+            artists_dict = {}
+            for item in data["items"]:
+                if "artist" in item:
+                    artist = item["artist"]
+                    artist_id = artist.get("id")
+                    if artist_id and artist_id not in artists_dict:
+                        artists_dict[artist_id] = artist
+                # Also check featured artists
+                if "artists" in item:
+                    for artist in item["artists"]:
+                        artist_id = artist.get("id")
+                        if artist_id and artist_id not in artists_dict:
+                            artists_dict[artist_id] = artist
+            
+            if artists_dict:
+                # Return in format expected by streamrip
+                return [{"items": list(artists_dict.values())}]
+            return []
+        elif media_type == "album":
+            # Extract unique albums from track results
+            albums_dict = {}
+            for item in data["items"]:
+                if "album" in item:
+                    album = item["album"]
+                    album_id = album.get("id")
+                    if album_id and album_id not in albums_dict:
+                        albums_dict[album_id] = album
+            
+            if albums_dict:
+                return [{"items": list(albums_dict.values())}]
+            return []
+        elif media_type == "playlist":
+            # HiFi search doesn't return playlists directly
+            logger.warning("HiFi search does not support playlist search")
+            return []
         
         return []
 
@@ -165,23 +235,68 @@ class HifiClient(Client):
         Returns:
             Downloadable object with stream URL
         """
+        import base64
+        import json
+        
         quality_str = QUALITY_MAP.get(quality, "LOSSLESS")
         
-        # HiFi uses /dash/ endpoint for streaming
-        # This returns a DASH manifest that can be streamed directly
-        url = f"{self.base_url}/dash/"
+        # Get track info which includes the manifest
+        url = f"{self.base_url}/track/"
+        params = {
+            "id": track_id,
+            "quality": quality_str,
+        }
         
-        # The /dash/ endpoint returns the manifest directly, which can be used as a stream URL
-        # We'll use it as the download URL
-        stream_url = f"{url}?id={track_id}&quality={quality_str}"
+        async with self.rate_limiter:
+            async with self.session.get(url, params=params) as resp:
+                if resp.status != 200:
+                    # Try lower quality if current quality fails
+                    if quality > 0:
+                        logger.warning(
+                            f"Failed to get quality {quality_str} for track {track_id}, trying lower quality"
+                        )
+                        return await self.get_downloadable(track_id, quality - 1)
+                    raise NonStreamableError(f"Failed to get track {track_id}: {resp.status}")
+                
+                data = await resp.json()
         
-        logger.debug(f"Stream URL: {stream_url}")
+        logger.debug(f"Download info: {data}")
         
-        # Determine extension from quality
-        if quality >= 2:
+        # HiFi returns an array: [track_metadata, stream_info, ...]
+        # stream_info contains the base64 encoded manifest
+        if not isinstance(data, list) or len(data) < 2:
+            raise NonStreamableError(f"Invalid response format for track {track_id}")
+        
+        stream_info = data[1]
+        manifest_b64 = stream_info.get("manifest")
+        if not manifest_b64:
+            raise NonStreamableError(f"No manifest found for track {track_id}")
+        
+        # Decode the base64 manifest
+        try:
+            manifest = json.loads(base64.b64decode(manifest_b64).decode("utf-8"))
+        except (json.JSONDecodeError, KeyError) as e:
+            raise NonStreamableError(f"Failed to decode manifest for track {track_id}: {e}")
+        
+        logger.debug(f"Manifest: {manifest}")
+        
+        # Get the stream URL from manifest
+        if "urls" not in manifest or len(manifest["urls"]) == 0:
+            raise NonStreamableError(f"No stream URL found in manifest for track {track_id}")
+        
+        stream_url = manifest["urls"][0]
+        
+        # Determine extension and codec from manifest
+        mime_type = manifest.get("mimeType", "")
+        if "flac" in mime_type.lower():
             extension = "flac"
-        else:
+        elif "mp4" in mime_type.lower() or "aac" in mime_type.lower():
             extension = "m4a"
+        else:
+            # Fallback based on quality
+            extension = "flac" if quality >= 2 else "m4a"
+        
+        logger.debug(f"Stream URL: {stream_url}, extension: {extension}")
         
         return BasicDownloadable(
             session=self.session,
