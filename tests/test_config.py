@@ -14,6 +14,7 @@ from streamrip.config import (
     DeezerConfig,
     DownloadsConfig,
     FilepathsConfig,
+    HifiConfig,
     LastFmConfig,
     MetadataConfig,
     MiscConfig,
@@ -195,6 +196,10 @@ def test_sample_config_data_fields(sample_config_data):
             app_version="appversion",
             quality=0,
         ),
+        hifi=HifiConfig(
+            quality=2,
+            base_url="https://hifi.401658.xyz",
+        ),
         youtube=YoutubeConfig(
             video_downloads_folder="videodownloadsfolder",
             quality=0,
@@ -232,6 +237,7 @@ def test_sample_config_data_fields(sample_config_data):
             text_output=False,
             progress_bars=False,
             max_search_results=100,
+            show_search_images=True,
         ),
         database=DatabaseConfig(
             downloads_enabled=True,
@@ -254,6 +260,7 @@ def test_sample_config_data_fields(sample_config_data):
     assert sample_config_data.tidal == test_config.tidal
     assert sample_config_data.deezer == test_config.deezer
     assert sample_config_data.soundcloud == test_config.soundcloud
+    assert sample_config_data.hifi == test_config.hifi
     assert sample_config_data.youtube == test_config.youtube
     assert sample_config_data.lastfm == test_config.lastfm
     assert sample_config_data.artwork == test_config.artwork

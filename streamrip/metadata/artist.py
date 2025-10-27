@@ -19,9 +19,10 @@ class ArtistMetadata:
         logger.debug(resp)
         if source == "qobuz":
             return cls(resp["name"], [a["id"] for a in resp["albums"]["items"]])
-        elif source == "tidal":
+        elif source in ("tidal", "hifi"):
+            # HiFi uses the same format as Tidal (it's a Tidal proxy)
             return cls(resp["name"], [a["id"] for a in resp["albums"]])
         elif source == "deezer":
             return cls(resp["name"], [a["id"] for a in resp["albums"]])
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"Source {source} not supported")

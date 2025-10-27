@@ -1,6 +1,7 @@
 from .client import Client
 from .deezer import DeezerClient
 from .downloadable import BasicDownloadable, Downloadable
+from .hifi import HifiClient
 from .qobuz import QobuzClient
 from .soundcloud import SoundcloudClient
 from .tidal import TidalClient
@@ -11,6 +12,7 @@ __all__ = [
     "TidalClient",
     "QobuzClient",
     "SoundcloudClient",
+    "HifiClient",
     "Downloadable",
     "BasicDownloadable",
 ]

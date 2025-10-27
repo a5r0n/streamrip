@@ -6,7 +6,14 @@ import platform
 import aiofiles
 
 from .. import db
-from ..client import Client, DeezerClient, QobuzClient, SoundcloudClient, TidalClient
+from ..client import (
+    Client,
+    DeezerClient,
+    HifiClient,
+    QobuzClient,
+    SoundcloudClient,
+    TidalClient,
+)
 from ..config import Config
 from ..console import console
 from ..media import (
@@ -53,6 +60,7 @@ class Main:
             "tidal": TidalClient(config),
             "deezer": DeezerClient(config),
             "soundcloud": SoundcloudClient(config),
+            "hifi": HifiClient(config),
         }
 
         self.database: db.Database
@@ -190,6 +198,11 @@ class Main:
                 console.print(f"[red]No search results found for query {query}")
                 return
             search_results = SearchResults.from_pages(source, media_type, pages)
+
+        # Download preview images for results if enabled
+        if self.config.session.cli.show_search_images:
+            with console.status("[bold]Loading preview images...", spinner="dots"):
+                await search_results.download_preview_images(client.session)
 
         if platform.system() == "Windows":  # simple term menu not supported for windows
             from pick import pick

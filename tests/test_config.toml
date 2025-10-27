@@ -79,6 +79,12 @@ quality = 0
 client_id = "clientid"
 app_version = "appversion"
 
+[hifi]
+# 0: LOW (AAC), 1: HIGH (AAC), 2: LOSSLESS (FLAC), 3: HI_RES (MQA)
+quality = 2
+# Base URL for the HiFi API (Tidal proxy - no authentication required)
+base_url = "https://hifi.401658.xyz"
+
 [youtube]
 # Only 0 is available for now
 quality = 0
@@ -188,6 +194,8 @@ text_output = true
 progress_bars = true
 # The maximum number of search results to show in the interactive menu
 max_search_results = 100
+# Show cover art images in search result previews (requires compatible terminal)
+show_search_images = true
 
 [misc]
 # Metadata to identify this config file. Do not change.

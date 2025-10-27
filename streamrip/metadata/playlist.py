@@ -114,7 +114,8 @@ class PlaylistMetadata:
             return cls.from_soundcloud(resp)
         elif source == "deezer":
             return cls.from_deezer(resp)
-        elif source == "tidal":
+        elif source in ("tidal", "hifi"):
+            # HiFi uses the same format as Tidal (it's a Tidal proxy)
             return cls.from_tidal(resp)
         else:
-            raise NotImplementedError(source)
+            raise NotImplementedError(f"Source {source} not supported")
