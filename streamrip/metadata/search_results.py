@@ -136,6 +136,11 @@ class AlbumSummary(Summary):
             or item.get("artist", {}).get("name")
             or item.get("artist")
             or (
+                item.get("artists")
+                and len(item["artists"]) > 0
+                and item["artists"][0].get("name")
+            )
+            or (
                 item.get("publisher_metadata")
                 and item["publisher_metadata"].get("artist")
             )

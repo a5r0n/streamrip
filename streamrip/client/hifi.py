@@ -172,7 +172,7 @@ class HifiClient(Client):
         Args:
             media_type: One of "track", "album", "playlist", "artist"
             query: Search query string
-            limit: Maximum number of results (not used by HiFi API)
+            limit: Maximum number of results
 
         Returns:
             List of search results
@@ -180,7 +180,16 @@ class HifiClient(Client):
         assert media_type in ("track", "album", "playlist", "artist"), media_type
         
         url = f"{self.base_url}/search/"
-        params = {"s": query}
+        
+        # Use specific search parameters based on media type
+        if media_type == "artist":
+            params = {"a": query, "li": limit}
+        elif media_type == "album":
+            params = {"al": query, "li": limit}
+        elif media_type == "playlist":
+            params = {"p": query, "li": limit}
+        else:  # track
+            params = {"s": query, "li": limit}
         
         async with self.rate_limiter:
             async with self.session.get(url, params=params) as resp:
@@ -189,59 +198,27 @@ class HifiClient(Client):
                     return []
                 data = await resp.json()
         
-        logger.debug(f"Search returned {data.get('totalNumberOfItems', 0)} total items")
-        
-        # HiFi search API returns tracks in {"items": [...]} format
-        # For different media types, we need to extract relevant information
-        if "items" not in data or len(data["items"]) == 0:
+        # HiFi search returns different formats:
+        # - Artist search: returns a list with one dict
+        # - Other searches: return a dict directly
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]
+        elif not isinstance(data, dict):
             return []
         
-        if media_type == "track":
-            # Return tracks as-is
-            return [data]
-        elif media_type == "artist":
-            # Extract unique artists from track results
-            artists_dict = {}
-            for item in data["items"]:
-                if "artist" in item:
-                    artist = item["artist"]
-                    artist_id = artist.get("id")
-                    if artist_id and artist_id not in artists_dict:
-                        artists_dict[artist_id] = artist
-                # Also check featured artists
-                if "artists" in item:
-                    for artist in item["artists"]:
-                        artist_id = artist.get("id")
-                        if artist_id and artist_id not in artists_dict:
-                            artists_dict[artist_id] = artist
+        media_type_key = f"{media_type}s"
+        if media_type_key not in data:
+            return []
+        
+        results_data = data[media_type_key]
+        
+        # Results are in format: {"items": [...], "limit": x, "offset": y, "totalNumberOfItems": z}
+        if isinstance(results_data, dict) and "items" in results_data:
+            items = results_data["items"]
+            logger.debug(f"Search returned {len(items)} {media_type}s")
             
-            if artists_dict:
-                # Return in format expected by streamrip
-                return [{"items": list(artists_dict.values())}]
-            return []
-        elif media_type == "album":
-            # Extract unique albums from track results
-            albums_dict = {}
-            for item in data["items"]:
-                if "album" in item:
-                    album = item["album"].copy()  # Make a copy to avoid modifying original
-                    album_id = album.get("id")
-                    if album_id and album_id not in albums_dict:
-                        # Enrich album data with artist info from track
-                        if "artist" in item and "artist" not in album:
-                            album["artist"] = item["artist"]
-                        # Add numberOfTracks if not present (estimate from search)
-                        if "numberOfTracks" not in album:
-                            album["numberOfTracks"] = 0  # Will be unknown in preview
-                        albums_dict[album_id] = album
-            
-            if albums_dict:
-                return [{"items": list(albums_dict.values())}]
-            return []
-        elif media_type == "playlist":
-            # HiFi search doesn't return playlists directly
-            logger.warning("HiFi search does not support playlist search")
-            return []
+            if len(items) > 0:
+                return [{"items": items}]
         
         return []
 
