@@ -143,7 +143,7 @@ class HifiClient(Client):
     async def _get_artist(self, artist_id: str) -> dict:
         """Get artist metadata from HiFi API."""
         url = f"{self.base_url}/artist/"
-        params = {"id": artist_id}
+        params = {"f": artist_id}  # Use f parameter to get full album list
         
         async with self.rate_limiter:
             async with self.session.get(url, params=params) as resp:
@@ -151,58 +151,44 @@ class HifiClient(Client):
                     raise NonStreamableError(f"Failed to get artist {artist_id}: {resp.status}")
                 data = await resp.json()
         
-        # HiFi returns an array: [artist_metadata, image_data]
-        # We only need the artist metadata (first element)
-        if isinstance(data, list) and len(data) > 0:
-            artist_data = data[0]
-        else:
-            artist_data = data
+        # HiFi with f parameter returns: [album_page_structure, tracks_list]
+        artist_data = {}
+        albums = []
         
-        artist_name = artist_data.get("name", "")
+        if isinstance(data, list) and len(data) >= 1:
+            # First element contains album structure
+            album_structure = data[0]
+            if isinstance(album_structure, dict):
+                # Navigate through the structure to find albums
+                rows = album_structure.get("rows", [])
+                if len(rows) > 0:
+                    modules = rows[0].get("modules", [])
+                    for module in modules:
+                        if module.get("type") == "ALBUM_LIST":
+                            paged_list = module.get("pagedList", {})
+                            albums = paged_list.get("items", [])
+                            break
+                
+                # Extract artist info from the first album
+                if len(albums) > 0 and "artists" in albums[0]:
+                    for artist in albums[0]["artists"]:
+                        if str(artist.get("id")) == str(artist_id):
+                            artist_data = artist
+                            break
         
-        # Get albums by searching for the artist name
-        # HiFi doesn't have a direct artist albums endpoint, so we search
-        try:
-            search_url = f"{self.base_url}/search/"
-            search_params = {"al": artist_name, "li": 100}  # Search albums by artist name
-            
+        # If we couldn't get artist data from albums, fetch it separately
+        if not artist_data or "name" not in artist_data:
+            url = f"{self.base_url}/artist/"
+            params = {"id": artist_id}
             async with self.rate_limiter:
-                async with self.session.get(search_url, params=search_params) as resp:
+                async with self.session.get(url, params=params) as resp:
                     if resp.status == 200:
-                        search_data = await resp.json()
-                        
-                        # Handle response format
-                        if isinstance(search_data, list) and len(search_data) > 0:
-                            search_data = search_data[0]
-                        
-                        if isinstance(search_data, dict) and "albums" in search_data:
-                            albums_data = search_data["albums"]
-                            if isinstance(albums_data, dict) and "items" in albums_data:
-                                albums = albums_data["items"]
-                                # Filter to only include albums by this specific artist
-                                # Check if the album's artists list contains this artist ID
-                                filtered_albums = []
-                                for album in albums:
-                                    if "artists" in album:
-                                        for artist in album["artists"]:
-                                            if str(artist.get("id")) == str(artist_id):
-                                                filtered_albums.append(album)
-                                                break
-                                
-                                artist_data["albums"] = filtered_albums
-                                logger.debug(f"Found {len(filtered_albums)} albums for artist {artist_name}")
-                            else:
-                                artist_data["albums"] = []
-                        else:
-                            artist_data["albums"] = []
-                    else:
-                        logger.warning(f"Failed to search albums for artist {artist_name}")
-                        artist_data["albums"] = []
-        except Exception as e:
-            logger.warning(f"Error fetching albums for artist {artist_name}: {e}")
-            artist_data["albums"] = []
+                        fallback_data = await resp.json()
+                        if isinstance(fallback_data, list) and len(fallback_data) > 0:
+                            artist_data = fallback_data[0]
         
-        logger.debug(f"Artist metadata: {artist_data.get('name')} with {len(artist_data.get('albums', []))} albums")
+        artist_data["albums"] = albums
+        logger.debug(f"Artist metadata: {artist_data.get('name')} with {len(albums)} albums")
         return artist_data
 
     async def search(self, media_type: str, query: str, limit: int = 100) -> list[dict]:
