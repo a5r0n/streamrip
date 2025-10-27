@@ -62,9 +62,9 @@ class ArtistSummary(Summary):
         num_albums = item.get("albums_count") or "Unknown"
         # Extract cover URL
         cover_url = None
-        if "picture" in item and item["picture"]:
+        if item.get("picture"):
             cover_url = item["picture"]
-        elif "image" in item and item["image"]:
+        elif item.get("image"):
             if isinstance(item["image"], dict):
                 cover_url = item["image"].get("large") or item["image"].get("small")
             elif isinstance(item["image"], str):
@@ -127,9 +127,9 @@ class TrackSummary(Summary):
                     cover_url = img
             elif "cover" in item["album"]:
                 cover_url = item["album"]["cover"]
-        elif "artwork_url" in item and item["artwork_url"]:
+        elif item.get("artwork_url"):
             cover_url = item["artwork_url"]
-        elif "cover" in item and item["cover"]:
+        elif item.get("cover"):
             cover_url = item["cover"]
         return cls(id, name.strip(), artist, date_released, cover_url)  # type: ignore
 
@@ -192,16 +192,16 @@ class AlbumSummary(Summary):
         )
         # Extract cover URL
         cover_url = None
-        if "image" in item and item["image"]:
+        if item.get("image"):
             if isinstance(item["image"], dict):
                 cover_url = item["image"].get("large") or item["image"].get("small")
             elif isinstance(item["image"], str):
                 cover_url = item["image"]
-        elif "cover" in item and item["cover"]:
+        elif item.get("cover"):
             cover_url = item["cover"]
-        elif "cover_xl" in item and item["cover_xl"]:
+        elif item.get("cover_xl"):
             cover_url = item["cover_xl"]
-        elif "artwork_url" in item and item["artwork_url"]:
+        elif item.get("artwork_url"):
             cover_url = item["artwork_url"]
         return cls(id, name, artist, str(num_tracks), date_released, cover_url)
 
@@ -272,16 +272,16 @@ class PlaylistSummary(Summary):
         description = item.get("description") or "No description"
         # Extract cover URL
         cover_url = None
-        if "image" in item and item["image"]:
+        if item.get("image"):
             if isinstance(item["image"], dict):
                 cover_url = item["image"].get("large") or item["image"].get("small")
             elif isinstance(item["image"], str):
                 cover_url = item["image"]
-        elif "picture_xl" in item and item["picture_xl"]:
+        elif item.get("picture_xl"):
             cover_url = item["picture_xl"]
-        elif "picture_big" in item and item["picture_big"]:
+        elif item.get("picture_big"):
             cover_url = item["picture_big"]
-        elif "artwork_url" in item and item["artwork_url"]:
+        elif item.get("artwork_url"):
             cover_url = item["artwork_url"]
         return cls(id, name, creator, num_tracks, description, cover_url)
 
@@ -383,8 +383,9 @@ class SearchResults:
             session: aiohttp session for downloading
 
         """
-        from ..utils.image_preview import get_image_preview
         import asyncio
+
+        from ..utils.image_preview import get_image_preview
         
         image_handler = get_image_preview()
         

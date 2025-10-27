@@ -1,8 +1,6 @@
 """Utility for displaying images in the terminal during search previews."""
 
-import io
 import logging
-import os
 import tempfile
 from pathlib import Path
 

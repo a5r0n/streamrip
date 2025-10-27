@@ -381,12 +381,18 @@ def database_browse(ctx, table):
     default=100,
     type=click.IntRange(min=1),
 )
+@click.option(
+    "--no-images",
+    help="Disable cover art images in search result previews",
+    is_flag=True,
+    default=False,
+)
 @click.argument("source", required=True)
 @click.argument("media-type", required=True)
 @click.argument("query", required=True)
 @click.pass_context
 @coro
-async def search(ctx, first, output_file, num_results, source, media_type, query):
+async def search(ctx, first, output_file, num_results, no_images, source, media_type, query):
     """Search for content using a specific source.
 
     Example:
@@ -397,6 +403,10 @@ async def search(ctx, first, output_file, num_results, source, media_type, query
         console.print("Cannot choose --first and --output-file!")
         return
     with ctx.obj["config"] as cfg:
+        # Override image setting if --no-images is specified
+        if no_images:
+            cfg.session.cli.show_search_images = False
+        
         async with Main(cfg) as main:
             if first:
                 await main.search_take_first(source, media_type, query)
