@@ -7,7 +7,14 @@ from abc import ABC, abstractmethod
 from click import launch
 from rich.prompt import Prompt
 
-from ..client import Client, DeezerClient, QobuzClient, SoundcloudClient, TidalClient
+from ..client import (
+    Client,
+    DeezerClient,
+    HifiClient,
+    QobuzClient,
+    SoundcloudClient,
+    TidalClient,
+)
 from ..config import Config
 from ..console import console
 from ..exceptions import AuthenticationError, MissingCredentialsError
@@ -204,11 +211,29 @@ class SoundcloudPrompter(CredentialPrompter):
         return client
 
 
+class HifiPrompter(CredentialPrompter):
+    """Prompter for HiFi (no authentication required)."""
+    
+    def has_creds(self) -> bool:
+        return True
+
+    async def prompt_and_login(self):
+        await self.client.login()
+
+    def save(self):
+        pass
+
+    def type_check_client(self, client) -> HifiClient:
+        assert isinstance(client, HifiClient)
+        return client
+
+
 PROMPTERS = {
     "qobuz": QobuzPrompter,
     "deezer": DeezerPrompter,
     "tidal": TidalPrompter,
     "soundcloud": SoundcloudPrompter,
+    "hifi": HifiPrompter,
 }
 
 

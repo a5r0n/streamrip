@@ -86,6 +86,14 @@ class SoundcloudConfig:
 
 
 @dataclass(slots=True)
+class HifiConfig:
+    # 0: LOW (AAC), 1: HIGH (AAC), 2: LOSSLESS (FLAC), 3: HI_RES (MQA)
+    quality: int
+    # Base URL for the HiFi API
+    base_url: str
+
+
+@dataclass(slots=True)
 class YoutubeConfig:
     # The path to download the videos to
     video_downloads_folder: str
@@ -251,6 +259,7 @@ class ConfigData:
     tidal: TidalConfig
     deezer: DeezerConfig
     soundcloud: SoundcloudConfig
+    hifi: HifiConfig
     youtube: YoutubeConfig
     lastfm: LastFmConfig
 
@@ -281,6 +290,7 @@ class ConfigData:
         tidal = TidalConfig(**toml["tidal"])  # type: ignore
         deezer = DeezerConfig(**toml["deezer"])  # type: ignore
         soundcloud = SoundcloudConfig(**toml["soundcloud"])  # type: ignore
+        hifi = HifiConfig(**toml["hifi"])  # type: ignore
         youtube = YoutubeConfig(**toml["youtube"])  # type: ignore
         lastfm = LastFmConfig(**toml["lastfm"])  # type: ignore
         artwork = ArtworkConfig(**toml["artwork"])  # type: ignore
@@ -299,6 +309,7 @@ class ConfigData:
             tidal=tidal,
             deezer=deezer,
             soundcloud=soundcloud,
+            hifi=hifi,
             youtube=youtube,
             lastfm=lastfm,
             artwork=artwork,
@@ -329,6 +340,7 @@ class ConfigData:
         update_toml_section_from_config(self.toml["tidal"], self.tidal)
         update_toml_section_from_config(self.toml["deezer"], self.deezer)
         update_toml_section_from_config(self.toml["soundcloud"], self.soundcloud)
+        update_toml_section_from_config(self.toml["hifi"], self.hifi)
         update_toml_section_from_config(self.toml["youtube"], self.youtube)
         update_toml_section_from_config(self.toml["lastfm"], self.lastfm)
         update_toml_section_from_config(self.toml["artwork"], self.artwork)
@@ -342,12 +354,13 @@ class ConfigData:
     def get_source(
         self,
         source: str,
-    ) -> QobuzConfig | DeezerConfig | SoundcloudConfig | TidalConfig:
+    ) -> QobuzConfig | DeezerConfig | SoundcloudConfig | TidalConfig | HifiConfig:
         d = {
             "qobuz": self.qobuz,
             "deezer": self.deezer,
             "soundcloud": self.soundcloud,
             "tidal": self.tidal,
+            "hifi": self.hifi,
         }
         res = d.get(source)
         if res is None:

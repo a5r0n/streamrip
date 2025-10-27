@@ -136,6 +136,11 @@ class AlbumSummary(Summary):
             or item.get("artist", {}).get("name")
             or item.get("artist")
             or (
+                item.get("artists")
+                and len(item["artists"]) > 0
+                and item["artists"][0].get("name")
+            )
+            or (
                 item.get("publisher_metadata")
                 and item["publisher_metadata"].get("artist")
             )
@@ -259,11 +264,12 @@ class SearchResults:
             elif source == "deezer":
                 for item in page["data"]:
                     results.append(summary_type.from_item(item))
-            elif source == "tidal":
+            elif source in ("tidal", "hifi"):
+                # HiFi uses the same format as Tidal (it's a Tidal proxy)
                 for item in page["items"]:
                     results.append(summary_type.from_item(item))
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f"Source {source} not supported")
 
         return cls(results)
 

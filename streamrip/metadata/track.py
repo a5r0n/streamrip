@@ -219,13 +219,14 @@ class TrackMetadata:
     def from_resp(cls, album: AlbumMetadata, source, resp) -> TrackMetadata | None:
         if source == "qobuz":
             return cls.from_qobuz(album, resp)
-        if source == "tidal":
+        if source in ("tidal", "hifi"):
+            # HiFi uses the same format as Tidal (it's a Tidal proxy)
             return cls.from_tidal(album, resp)
         if source == "soundcloud":
             return cls.from_soundcloud(album, resp)
         if source == "deezer":
             return cls.from_deezer(album, resp)
-        raise Exception
+        raise Exception(f"Invalid source: {source}")
 
     def format_track_path(self, format_string: str) -> str:
         # Available keys: "tracknumber", "artist", "albumartist", "composer", "title",
