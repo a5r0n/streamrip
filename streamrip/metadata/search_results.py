@@ -2,7 +2,7 @@ import os
 import re
 import textwrap
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 class Summary(ABC):
@@ -34,6 +34,7 @@ class ArtistSummary(Summary):
     id: str
     name: str
     num_albums: str
+    cover_url: str | None = None
 
     def media_type(self):
         return "artist"
@@ -59,7 +60,16 @@ class ArtistSummary(Summary):
             or "Unknown"
         )
         num_albums = item.get("albums_count") or "Unknown"
-        return cls(id, name, num_albums)
+        # Extract cover URL
+        cover_url = None
+        if "picture" in item and item["picture"]:
+            cover_url = item["picture"]
+        elif "image" in item and item["image"]:
+            if isinstance(item["image"], dict):
+                cover_url = item["image"].get("large") or item["image"].get("small")
+            elif isinstance(item["image"], str):
+                cover_url = item["image"]
+        return cls(id, name, num_albums, cover_url)
 
 
 @dataclass(slots=True)
@@ -68,6 +78,7 @@ class TrackSummary(Summary):
     name: str
     artist: str
     date_released: str | None
+    cover_url: str | None = None
 
     def media_type(self):
         return "track"
@@ -105,7 +116,22 @@ class TrackSummary(Summary):
             or item.get("year")
             or "Unknown"
         )
-        return cls(id, name.strip(), artist, date_released)  # type: ignore
+        # Extract cover URL
+        cover_url = None
+        if "album" in item and isinstance(item["album"], dict):
+            if "image" in item["album"]:
+                img = item["album"]["image"]
+                if isinstance(img, dict):
+                    cover_url = img.get("large") or img.get("small")
+                elif isinstance(img, str):
+                    cover_url = img
+            elif "cover" in item["album"]:
+                cover_url = item["album"]["cover"]
+        elif "artwork_url" in item and item["artwork_url"]:
+            cover_url = item["artwork_url"]
+        elif "cover" in item and item["cover"]:
+            cover_url = item["cover"]
+        return cls(id, name.strip(), artist, date_released, cover_url)  # type: ignore
 
 
 @dataclass(slots=True)
@@ -115,6 +141,7 @@ class AlbumSummary(Summary):
     artist: str
     num_tracks: str
     date_released: str | None
+    cover_url: str | None = None
 
     def media_type(self):
         return "album"
@@ -163,7 +190,20 @@ class AlbumSummary(Summary):
             or item.get("year")
             or "Unknown"
         )
-        return cls(id, name, artist, str(num_tracks), date_released)
+        # Extract cover URL
+        cover_url = None
+        if "image" in item and item["image"]:
+            if isinstance(item["image"], dict):
+                cover_url = item["image"].get("large") or item["image"].get("small")
+            elif isinstance(item["image"], str):
+                cover_url = item["image"]
+        elif "cover" in item and item["cover"]:
+            cover_url = item["cover"]
+        elif "cover_xl" in item and item["cover_xl"]:
+            cover_url = item["cover_xl"]
+        elif "artwork_url" in item and item["artwork_url"]:
+            cover_url = item["artwork_url"]
+        return cls(id, name, artist, str(num_tracks), date_released, cover_url)
 
 
 @dataclass(slots=True)
@@ -194,6 +234,7 @@ class PlaylistSummary(Summary):
     creator: str
     num_tracks: int
     description: str
+    cover_url: str | None = None
 
     def summarize(self) -> str:
         name = clean(self.name)
@@ -229,12 +270,26 @@ class PlaylistSummary(Summary):
             or -1
         )
         description = item.get("description") or "No description"
-        return cls(id, name, creator, num_tracks, description)
+        # Extract cover URL
+        cover_url = None
+        if "image" in item and item["image"]:
+            if isinstance(item["image"], dict):
+                cover_url = item["image"].get("large") or item["image"].get("small")
+            elif isinstance(item["image"], str):
+                cover_url = item["image"]
+        elif "picture_xl" in item and item["picture_xl"]:
+            cover_url = item["picture_xl"]
+        elif "picture_big" in item and item["picture_big"]:
+            cover_url = item["picture_big"]
+        elif "artwork_url" in item and item["artwork_url"]:
+            cover_url = item["artwork_url"]
+        return cls(id, name, creator, num_tracks, description, cover_url)
 
 
 @dataclass(slots=True)
 class SearchResults:
     results: list[Summary]
+    _preview_images: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_pages(cls, source: str, media_type: str, pages: list[dict]):
@@ -282,10 +337,71 @@ class SearchResults:
         return [self.results[i] for i in inds]
 
     def preview(self, s: str) -> str:
+        """Generate preview text for a search result.
+
+        Args:
+        ----
+            s: String starting with item number
+
+        Returns:
+        -------
+            Preview text with optional image
+
+        """
         ind = re.match(r"^\d+", s)
         assert ind is not None
         i = int(ind.group(0))
-        return self.results[i - 1].preview()
+        result = self.results[i - 1]
+        
+        # Get base preview text
+        preview_text = result.preview()
+        
+        # Try to add image preview if available
+        if hasattr(result, 'cover_url') and result.cover_url and result.id in self._preview_images:
+            image_path = self._preview_images[result.id]
+            try:
+                from ..utils.image_preview import get_image_preview
+                image_handler = get_image_preview()
+                
+                # Try to render the image
+                image_str = image_handler.create_terminal_image(image_path, max_width=40)
+                if image_str:
+                    # Add image above the preview text
+                    preview_text = f"{image_str}\n\n{preview_text}"
+            except Exception as e:
+                # If image rendering fails, just return text preview
+                import logging
+                logging.getLogger("streamrip").debug(f"Failed to render image preview: {e}")
+        
+        return preview_text
+
+    async def download_preview_images(self, session):
+        """Pre-download cover images for search results.
+
+        Args:
+        ----
+            session: aiohttp session for downloading
+
+        """
+        from ..utils.image_preview import get_image_preview
+        import asyncio
+        
+        image_handler = get_image_preview()
+        
+        # Download images for all results that have cover URLs
+        tasks = []
+        result_ids = []
+        for result in self.results:
+            if hasattr(result, 'cover_url') and result.cover_url:
+                tasks.append(image_handler.download_image(session, result.cover_url))
+                result_ids.append(result.id)
+        
+        if tasks:
+            image_paths = await asyncio.gather(*tasks, return_exceptions=True)
+            for result_id, path in zip(result_ids, image_paths):
+                if isinstance(path, str) and path:
+                    self._preview_images[result_id] = path
+
 
     def as_list(self, source: str) -> list[dict[str, str]]:
         return [

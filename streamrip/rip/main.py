@@ -199,6 +199,11 @@ class Main:
                 return
             search_results = SearchResults.from_pages(source, media_type, pages)
 
+        # Download preview images for results
+        if self.config.session.cli.get("show_search_images", True):
+            with console.status("[bold]Loading preview images...", spinner="dots"):
+                await search_results.download_preview_images(client.session)
+
         if platform.system() == "Windows":  # simple term menu not supported for windows
             from pick import pick
 
