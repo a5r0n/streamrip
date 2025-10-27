@@ -363,12 +363,22 @@ class SearchResults:
             try:
                 from ..utils.image_preview import get_image_preview
                 image_handler = get_image_preview()
-                
+
+                # Choose a max width that fits the preview pane (about half the terminal width)
+                try:
+                    term_cols = os.get_terminal_size().columns
+                except OSError:
+                    term_cols = 80
+                # leave some padding; cap to a sane range
+                max_width = max(40, min(80, int(term_cols * 0.45)))
+
                 # Try to render the image
-                image_str = image_handler.create_terminal_image(image_path, max_width=40)
+                image_str = image_handler.create_terminal_image(
+                    image_path, max_width=max_width
+                )
                 if image_str:
-                    # Add image above the preview text
-                    preview_text = f"{image_str}\n\n{preview_text}"
+                    # Add image below the preview text (as requested)
+                    preview_text = f"{preview_text}\n\n{image_str}"
             except Exception as e:
                 # If image rendering fails, just return text preview
                 import logging

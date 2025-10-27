@@ -21,6 +21,56 @@ QUALITY_MAP = {
 }
 
 
+def _convert_tidal_cover_uuid_to_url(uuid: str, size: int = 1280) -> str:
+    """Convert Tidal cover UUID to full image URL.
+
+    Args:
+        uuid: The Tidal cover UUID (e.g., 'b66a5c40-c34d-4507-a0dc-5f98e46fdd20')
+        size: Image size in pixels (e.g., 320, 640, 1280)
+
+    Returns:
+        Full image URL
+    """
+    if not uuid or "http" in uuid:
+        return uuid
+
+    # Format: UUID has dashes that become path separators
+    # b66a5c40-c34d-4507-a0dc-5f98e46fdd20 -> b66a5c40/c34d/4507/a0dc/5f98e46fdd20
+    uuid_parts = uuid.split("-")
+    if len(uuid_parts) == 5:
+        return f"https://resources.tidal.com/images/{uuid_parts[0]}/{uuid_parts[1]}/{uuid_parts[2]}/{uuid_parts[3]}/{uuid_parts[4]}/{size}x{size}.jpg"
+    return uuid
+
+
+def _fix_cover_urls_in_items(items: list[dict]) -> list[dict]:
+    """Convert Tidal cover UUIDs to full URLs in search result items.
+
+    Args:
+        items: List of search result items
+
+    Returns:
+        Items with cover UUIDs converted to full URLs
+    """
+    for item in items:
+        # Fix cover field if it's a UUID
+        if "cover" in item and item["cover"]:
+            item["cover"] = _convert_tidal_cover_uuid_to_url(item["cover"])
+
+        # Fix picture field (used for artists) if it's a UUID
+        if "picture" in item and item["picture"]:
+            item["picture"] = _convert_tidal_cover_uuid_to_url(item["picture"])
+
+        # Fix image field if it exists
+        if "image" in item and isinstance(item["image"], dict):
+            for key in ["small", "large", "thumbnail"]:
+                if key in item["image"] and item["image"][key]:
+                    item["image"][key] = _convert_tidal_cover_uuid_to_url(
+                        item["image"][key]
+                    )
+
+    return items
+
+
 class HifiClient(Client):
     """HiFi client for Tidal proxy API."""
 
@@ -243,6 +293,8 @@ class HifiClient(Client):
             logger.debug(f"Search returned {len(items)} {media_type}s")
             
             if len(items) > 0:
+                # Convert cover UUIDs to full URLs for image previews
+                items = _fix_cover_urls_in_items(items)
                 return [{"items": items}]
         
         return []

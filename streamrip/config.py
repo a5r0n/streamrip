@@ -231,7 +231,7 @@ class CliConfig:
     # The maximum number of search results to show in the interactive menu
     max_search_results: int
     # Show cover art images in search result previews (requires compatible terminal)
-    show_search_images: bool
+    show_search_images: bool = True
 
 
 @dataclass(slots=True)
