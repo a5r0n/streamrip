@@ -100,9 +100,18 @@ class HifiClient(Client):
                     raise NonStreamableError(f"Failed to get album {album_id}: {resp.status}")
                 data = await resp.json()
         
-        # HiFi returns an array: [album_metadata, ...]
-        # We only need the album metadata (first element)
-        if isinstance(data, list) and len(data) > 0:
+        # HiFi returns an array: [album_metadata, track_list]
+        # track_list has format: {"items": [{"item": track}, ...]}
+        if isinstance(data, list) and len(data) >= 2:
+            album_data = data[0]
+            track_list = data[1]
+            
+            # Extract tracks from the wrapped format
+            if "items" in track_list:
+                # Unwrap tracks from {"item": track} format
+                tracks = [item["item"] for item in track_list["items"] if "item" in item]
+                album_data["tracks"] = tracks
+        elif isinstance(data, list) and len(data) > 0:
             album_data = data[0]
         else:
             album_data = data
@@ -142,14 +151,19 @@ class HifiClient(Client):
                     raise NonStreamableError(f"Failed to get artist {artist_id}: {resp.status}")
                 data = await resp.json()
         
-        # HiFi returns an array: [artist_metadata, ...]
+        # HiFi returns an array: [artist_metadata, image_data]
         # We only need the artist metadata (first element)
         if isinstance(data, list) and len(data) > 0:
             artist_data = data[0]
         else:
             artist_data = data
         
-        logger.debug(f"Artist metadata: {artist_data}")
+        # HiFi artist endpoint doesn't include albums list
+        # Return empty albums list - streamrip will handle this gracefully
+        artist_data["albums"] = []
+        
+        logger.debug(f"Artist metadata (albums not available via HiFi): {artist_data}")
+        logger.info(f"Note: HiFi API doesn't support artist discography. Artist '{artist_data.get('name')}' will have no albums listed.")
         return artist_data
 
     async def search(self, media_type: str, query: str, limit: int = 100) -> list[dict]:
@@ -210,9 +224,15 @@ class HifiClient(Client):
             albums_dict = {}
             for item in data["items"]:
                 if "album" in item:
-                    album = item["album"]
+                    album = item["album"].copy()  # Make a copy to avoid modifying original
                     album_id = album.get("id")
                     if album_id and album_id not in albums_dict:
+                        # Enrich album data with artist info from track
+                        if "artist" in item and "artist" not in album:
+                            album["artist"] = item["artist"]
+                        # Add numberOfTracks if not present (estimate from search)
+                        if "numberOfTracks" not in album:
+                            album["numberOfTracks"] = 0  # Will be unknown in preview
                         albums_dict[album_id] = album
             
             if albums_dict:
