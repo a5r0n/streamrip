@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import textwrap
@@ -383,8 +384,6 @@ class SearchResults:
             session: aiohttp session for downloading
 
         """
-        import asyncio
-
         from ..utils.image_preview import get_image_preview
         
         image_handler = get_image_preview()
