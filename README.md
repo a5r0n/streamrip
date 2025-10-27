@@ -3,14 +3,14 @@
 [![Downloads](https://pepy.tech/badge/streamrip)](https://pepy.tech/project/streamrip)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
 
-A scriptable stream downloader for Qobuz, Tidal, Deezer and SoundCloud.
+A scriptable stream downloader for Qobuz, Tidal, Deezer, SoundCloud and HiFi.
 
 ![downloading an album](https://github.com/nathom/streamrip/blob/dev/demo/download_album.png?raw=true)
 
 ## Features
 
 - Fast, concurrent downloads powered by `aiohttp`
-- Downloads tracks, albums, playlists, discographies, and labels from Qobuz, Tidal, Deezer, and SoundCloud
+- Downloads tracks, albums, playlists, discographies, and labels from Qobuz, Tidal, Deezer, SoundCloud, and HiFi
 - Supports downloads of Spotify and Apple Music playlists through [last.fm](https://www.last.fm)
 - Automatically converts files to a preferred format
 - Has a database that stores the downloaded tracks' IDs so that repeats are avoided
@@ -68,7 +68,7 @@ pip3 install git+https://github.com/nathom/streamrip.git@dev
 
 ## Example Usage
 
-**For Tidal and Qobuz, you NEED a premium subscription.**
+**For Tidal and Qobuz, you NEED a premium subscription. HiFi is a free Tidal proxy that does not require authentication.**
 
 Download an album from Qobuz
 
@@ -90,13 +90,13 @@ rip --codec mp3 url https://open.qobuz.com/album/0060253780968
 
 To set the maximum quality, use the `--quality` option to `0, 1, 2, 3, 4`:
 
-| Quality ID | Audio Quality         | Available Sources                            |
-| ---------- | --------------------- | -------------------------------------------- |
-| 0          | 128 kbps MP3 or AAC   | Deezer, Tidal, SoundCloud (most of the time) |
-| 1          | 320 kbps MP3 or AAC   | Deezer, Tidal, Qobuz, SoundCloud (rarely)    |
-| 2          | 16 bit, 44.1 kHz (CD) | Deezer, Tidal, Qobuz, SoundCloud (rarely)    |
-| 3          | 24 bit, ≤ 96 kHz      | Tidal (MQA), Qobuz, SoundCloud (rarely)      |
-| 4          | 24 bit, ≤ 192 kHz     | Qobuz                                        |
+| Quality ID | Audio Quality         | Available Sources                                 |
+| ---------- | --------------------- | ------------------------------------------------- |
+| 0          | 128 kbps MP3 or AAC   | Deezer, Tidal, HiFi, SoundCloud (most of the time)|
+| 1          | 320 kbps MP3 or AAC   | Deezer, Tidal, HiFi, Qobuz, SoundCloud (rarely)   |
+| 2          | 16 bit, 44.1 kHz (CD) | Deezer, Tidal, HiFi, Qobuz, SoundCloud (rarely)   |
+| 3          | 24 bit, ≤ 96 kHz      | Tidal (MQA), HiFi, Qobuz, SoundCloud (rarely)     |
+| 4          | 24 bit, ≤ 192 kHz     | Qobuz                                             |
 
 ```bash
 rip --quality 3 url https://tidal.com/browse/album/147569387
@@ -116,6 +116,18 @@ Search for *Rumours* on Tidal, and download it
 
 ```bash
 rip search tidal album 'fleetwood mac rumours'
+```
+
+Search for and download using HiFi (free Tidal proxy, no authentication required)
+
+```bash
+rip search hifi album 'fleetwood mac rumours'
+```
+
+Download a track by ID using HiFi
+
+```bash
+rip id hifi track 286266926
 ```
 
 Download a last.fm playlist using the lastfm command
