@@ -5,7 +5,6 @@ without requiring authentication. It's available at https://hifi.401658.xyz/
 """
 
 import logging
-from typing import Optional
 
 from ..config import Config
 from ..exceptions import NonStreamableError
@@ -171,10 +170,6 @@ class HifiClient(Client):
         # HiFi uses /dash/ endpoint for streaming
         # This returns a DASH manifest that can be streamed directly
         url = f"{self.base_url}/dash/"
-        params = {
-            "id": track_id,
-            "quality": quality_str,
-        }
         
         # The /dash/ endpoint returns the manifest directly, which can be used as a stream URL
         # We'll use it as the download URL
@@ -182,12 +177,10 @@ class HifiClient(Client):
         
         logger.debug(f"Stream URL: {stream_url}")
         
-        # Determine codec from quality
+        # Determine extension from quality
         if quality >= 2:
-            codec = "FLAC"
             extension = "flac"
         else:
-            codec = "AAC"
             extension = "m4a"
         
         return BasicDownloadable(
