@@ -188,6 +188,8 @@ text_output = true
 progress_bars = true
 # The maximum number of search results to show in the interactive menu
 max_search_results = 100
+# Show cover art images in search result previews (requires compatible terminal)
+show_search_images = true
 
 [misc]
 # Metadata to identify this config file. Do not change.

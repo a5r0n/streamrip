@@ -232,6 +232,7 @@ def test_sample_config_data_fields(sample_config_data):
             text_output=False,
             progress_bars=False,
             max_search_results=100,
+            show_search_images=True,
         ),
         database=DatabaseConfig(
             downloads_enabled=True,
